@@ -18,6 +18,7 @@ using v8::Function;
 using v8::Null;
 using v8::Number;
 using v8::Array;
+using v8::EscapableHandleScope;
 
 using namespace node;
 
@@ -223,8 +224,9 @@ void decompress(const FunctionCallbackInfo<Value>& args) {
   Local<Array> bufs = Array::New(isolate);
   int result = BZ_OK, counter = 0;
   unsigned int const OUTSIZE = 4096;
+  bzs->avail_out = OUTSIZE;
 
-  while (bzs->avail_in > 0 && result != BZ_STREAM_END) {
+  while ((bzs->avail_out > 0) && result != BZ_STREAM_END) {
     std::cout << bzs->avail_in << " bytes available" << std::endl;
     Local<Object> outBuf = Buffer::New(isolate, OUTSIZE).ToLocalChecked();
     bzs->next_out = Buffer::Data(outBuf);
@@ -242,9 +244,9 @@ void decompress(const FunctionCallbackInfo<Value>& args) {
     if (bzs->avail_out < OUTSIZE) {
       std::cout << "Write " << (OUTSIZE - bzs->avail_out) << " bytes"
         << std::endl;
+      Local<Object> output = Buffer::New(isolate, Buffer::Data(outBuf), OUTSIZE - bzs->avail_out).ToLocalChecked();
       bufs->Set(
-        counter,
-        Buffer::New(isolate, Buffer::Data(outBuf), OUTSIZE - bzs->avail_out).ToLocalChecked()
+        counter, output
       );
       ++counter;
     }

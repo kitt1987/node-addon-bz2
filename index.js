@@ -9,7 +9,7 @@ class Bz2ReadStream extends Stream.Readable {
     super();
     this.path = path;
     this._openBzip();
-    this.pendingBuf = [];
+    this.pendingBuf = null;
   }
 
   _openBzip() {
@@ -19,48 +19,71 @@ class Bz2ReadStream extends Stream.Readable {
   }
 
   _closeBzip() {
+    if (this.bz2Stream === null || this.fd === null) return;
+    console.log('Stream will be closed');
     bzip2.decompressEnd(this.bz2Stream);
     fs.closeSync(this.fd);
+    this.bz2Stream = null;
+    this.fd = null;
   }
 
   _writeCB(buf) {
     if (buf) {
       console.log(buf.length + ' bytes decompressed');
-      if (!this.push(buf)) {
+      if (this.pendingBuf) {
         this.pendingBuf.push(buf);
+      } else {
+        console.log('Push buffer');
+        if (!this.push(buf)) {
+          this.pendingBuf = [];
+        }
       }
     } else {
+      console.log('==>with buf null');
       this.push(null);
     }
   }
 
   _read(size) {
-    if (this.pendingBuf.length > 0) {
+    console.log('Reading');
+    if (this.pendingBuf) {
       while (this.pendingBuf.length > 0) {
-        if (!this.push(this.pendingBuf[0])) return;
+        var buf = this.pendingBuf[0];
         this.pendingBuf.shift();
+        console.log('Push pendingBuf');
+        if (buf === null) console.log('Got a null pending');
+        if (this.pendingBuf.length === 0) this.pendingBuf = null;
+        if (!this.push(buf)) return;
       }
 
+      console.log(this.pendingBuf);
+      if (this.pendingBuf.length === 0) this.pendingBuf = null;
+    }
+
+    if (!this.bz2Stream || !this.fd) {
+      console.log('Push end');
+      this.push(null);
       return;
     }
 
-    var buf = Buffer.alloc(Math.ceil(size));
-    fs.read(this.fd, buf, 0, size, null, (err, bytesRead, buffer) => {
-      if (err) throw err;
-      if (bytesRead === 0) {
-        this._writeCB(null);
-        this._closeBzip();
-        return;
-      }
+    var buf = Buffer.alloc(size);
+    var bytesRead = fs.readSync(this.fd, buf, 0, size)
+    var bufs = bzip2.decompress(this.bz2Stream, buf.slice(0, bytesRead))
+    console.log(bufs.length + ' buffers got');
+    if (bufs.length === 0 && bytesRead === 0) {
+      console.log('Reach end');
+      this._closeBzip();
+      this._writeCB(null);
+      return;
+    }
 
-      bzip2.decompress(this.bz2Stream, buf.slice(0, bytesRead))
-        .map(buf => {
-          if (this.pendingBuf.length > 0) {
-            this.pendingBuf.push(buf);
-          } else {
-            this._writeCB(buf);
-          }
-        });
+    bufs.map(buf => {
+      if (this.pendingBuf) {
+        console.log('Push pending');
+        this.pendingBuf.push(buf);
+      } else {
+        this._writeCB(buf);
+      }
     });
   }
 
