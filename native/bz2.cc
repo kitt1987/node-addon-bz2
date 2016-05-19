@@ -52,8 +52,6 @@ void compressInit(const FunctionCallbackInfo<Value>& args) {
 void compress(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = args.GetIsolate();
   if (args.Length() < 2) {
-    std::cerr << "3 arguments are bzip stream, input buffer and output buffer"
-      << std::endl;
     isolate->ThrowException(Exception::TypeError(
         String::NewFromUtf8(
           isolate, "You have to set the bzip2 stream, input buffer"
@@ -63,7 +61,6 @@ void compress(const FunctionCallbackInfo<Value>& args) {
   }
 
   if (!args[0]->IsExternal()) {
-    std::cerr << "The 1st argument must be the bz2 stream" << std::endl;
     isolate->ThrowException(Exception::TypeError(
         String::NewFromUtf8(
           isolate, "You have to indicate the bzip2 stream."
@@ -72,7 +69,6 @@ void compress(const FunctionCallbackInfo<Value>& args) {
   }
 
   if (!args[1]->IsString() && !Buffer::HasInstance(args[1])) {
-    std::cerr << "The 2nd argument must be String or Buffer" << std::endl;
     isolate->ThrowException(Exception::TypeError(
         String::NewFromUtf8(
           isolate, "Things you want to compress have to be String or Buffer."
@@ -89,13 +85,11 @@ void compress(const FunctionCallbackInfo<Value>& args) {
 
   int counter = 0;
   unsigned int const OUTSIZE = 4096;
-  std::cout << "On compress" << std::endl;
 
   while (bzs->avail_in > 0) {
     Local<Object> outBuf = Buffer::New(isolate, OUTSIZE).ToLocalChecked();
     bzs->next_out = Buffer::Data(outBuf);
     bzs->avail_out = OUTSIZE;
-    std::cout << bzs->avail_in << " bytes are pending" << std::endl;
 
     int result = BZ2_bzCompress(bzs, BZ_RUN);
     if (result != BZ_RUN_OK) {
@@ -107,10 +101,6 @@ void compress(const FunctionCallbackInfo<Value>& args) {
       return;
     }
 
-    std::cout << bzs->avail_in << " bytes are pending" << std::endl;
-
-    std::cout << "Write " << (OUTSIZE - bzs->avail_out) << " bytes of "
-      << bzs->total_out_lo32 << std::endl;
     if (bzs->avail_out < OUTSIZE) {
       bufs->Set(
         counter,
@@ -130,10 +120,7 @@ void compressEnd(const FunctionCallbackInfo<Value>& args) {
   int result = BZ_OK, counter = 0;
   unsigned int const OUTSIZE = 4096;
 
-  std::cout << "On close compress stream " << bzs->avail_in << std::endl;
-
   while (result != BZ_STREAM_END) {
-    std::cout << bzs->avail_in << " bytes are pending " << result << std::endl;
     Local<Object> outBuf = Buffer::New(isolate, OUTSIZE).ToLocalChecked();
     bzs->next_out = Buffer::Data(outBuf);
     bzs->avail_out = OUTSIZE;
@@ -146,10 +133,6 @@ void compressEnd(const FunctionCallbackInfo<Value>& args) {
       return;
     }
 
-    std::cout << (OUTSIZE - bzs->avail_out) << " bytes are pending"
-      << std::endl;
-    std::cout << "Write " << bzs->avail_out << " bytes of "
-      << bzs->total_out_lo32 << std::endl;
     if (bzs->avail_out < OUTSIZE) {
       bufs->Set(
         counter,
