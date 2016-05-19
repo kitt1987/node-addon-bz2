@@ -191,10 +191,11 @@ void decompressInit(const FunctionCallbackInfo<Value>& args) {
 
 void decompress(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = args.GetIsolate();
-  if (args.Length() < 2) {
+  if (args.Length() < 3) {
     isolate->ThrowException(Exception::TypeError(
         String::NewFromUtf8(
-          isolate, "You have to set the bzip2 stream and input buffer."
+          isolate, "bzip2 stream, compressed data buffer and output buffer are"
+          " required."
         )));
     return;
   }
@@ -210,49 +211,52 @@ void decompress(const FunctionCallbackInfo<Value>& args) {
   if (!args[1]->IsString() && !Buffer::HasInstance(args[1])) {
     isolate->ThrowException(Exception::TypeError(
         String::NewFromUtf8(
-          isolate, "Things you want to decompress have to be String or Buffer."
+          isolate, "The compressed data must be String or Buffer."
         )));
     return;
   }
 
-  MaybeLocal<Object> buf = args[1]->ToObject();
-  Local<Object> inputBuf = buf.ToLocalChecked();
+  if (!Buffer::HasInstance(args[2])) {
+    isolate->ThrowException(Exception::TypeError(
+        String::NewFromUtf8(
+          isolate, "The output buffer is required"
+        )));
+    return;
+  }
+
+  MaybeLocal<Object> input = args[1]->ToObject();
+  Local<Object> inputBuf = input.ToLocalChecked();
+  MaybeLocal<Object> output = args[2]->ToObject();
+  Local<Object> outputBuf = output.ToLocalChecked();
+
   bz_stream* bzs = (bz_stream*) Local<External>::Cast(args[0])->Value();
   bzs->next_in = Buffer::Data(inputBuf);
   bzs->avail_in = Buffer::Length(inputBuf);
+  size_t out_buf_size = Buffer::Length(outputBuf);
+  bzs->next_out = Buffer::Data(outputBuf);
+  bzs->avail_out = out_buf_size;
 
-  Local<Array> bufs = Array::New(isolate);
-  int result = BZ_OK, counter = 0;
-  unsigned int const OUTSIZE = 4096;
-  bzs->avail_out = OUTSIZE;
-
+  int result = BZ_OK;
   while ((bzs->avail_out > 0) && result != BZ_STREAM_END) {
-    std::cout << bzs->avail_in << " bytes available" << std::endl;
-    Local<Object> outBuf = Buffer::New(isolate, OUTSIZE).ToLocalChecked();
-    bzs->next_out = Buffer::Data(outBuf);
-    bzs->avail_out = OUTSIZE;
     result = BZ2_bzDecompress(bzs);
     if (result != BZ_OK && result != BZ_STREAM_END) {
       std::cerr << "Fail to decompress caused by " << result << std::endl;
       isolate->ThrowException(Exception::TypeError(
-          String::NewFromUtf8(
-            isolate, "Fail to decompress."
-          )));
+          String::NewFromUtf8(isolate, "Fail to decompress.")));
       return;
     }
 
-    if (bzs->avail_out < OUTSIZE) {
-      std::cout << "Write " << (OUTSIZE - bzs->avail_out) << " bytes"
-        << std::endl;
-      Local<Object> output = Buffer::New(isolate, Buffer::Data(outBuf), OUTSIZE - bzs->avail_out).ToLocalChecked();
-      bufs->Set(
-        counter, output
-      );
-      ++counter;
+    if (bzs->avail_out < out_buf_size) {
+      EscapableHandleScope scope(isolate);
+      Local<Object> returnValue = Object::New(isolate);
+      returnValue->Set(String::NewFromUtf8(isolate, "in"),
+        Number::New(isolate, bzs->avail_in));
+      returnValue->Set(String::NewFromUtf8(isolate, "out"),
+        Number::New(isolate, out_buf_size - bzs->avail_out));
+      args.GetReturnValue().Set(scope.Escape(returnValue));
+      return;
     }
   }
-
-  args.GetReturnValue().Set(bufs);
 }
 
 void decompressEnd(const FunctionCallbackInfo<Value>& args) {
