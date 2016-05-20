@@ -82,7 +82,7 @@ function createDecompressStream(debug, outputBufSize) {
 
 function createCompressStream(debug, outputBufSize) {
   outputBufSize = outputBufSize || DEFAULT_OUTPUT_BUFFER_SIZE;
-  var trace = getTraceFunc(debug ? '[DEC]' : debug);
+  var trace = getTraceFunc(debug ? '[CO]' : debug);
   return new Bz2Stream(
     () => bzip2.compressInit(),
     (stream, input, output) => bzip2.compress(stream, input, output),
@@ -112,22 +112,98 @@ function createCompressStream(debug, outputBufSize) {
   );
 }
 
-function createFileReadStream(path, debug, outputBufSize) {
-  return fs.createReadStream(path).pipe(
-    createDecompressStream(debug, outputBufSize)
+function bz2Codec(createStream, codec, closeStream, data, debug, outputBufSize) {
+  outputBufSize = outputBufSize || DEFAULT_OUTPUT_BUFFER_SIZE;
+  var trace = getTraceFunc(debug);
+  var bz2Stream = createStream();
+  var result = { in : data.length,
+    out: outputBufSize
+  };
+
+  var compressed;
+  while (result && !result.reachEnd && result.in > 0 && result.out > 0) {
+    var output = Buffer.alloc(outputBufSize);
+    result = codec(bz2Stream, data, output);
+    data = data.slice(data.length - result.in);
+    trace('++ Bytes available in input buffer is ' + data.length);
+    trace('++ Bytes in output buffer is ' + result.out);
+    trace('++ Is stream reaches end ? ' + !!result.reachEnd);
+    if (result.out > 0) {
+      trace('++ Try to push ' + result.out + ' bytes');
+      if (compressed) {
+        compressed = Buffer.concat([compressed, output.slice(0, result.out)]);
+      } else {
+        compressed = output.slice(0, result.out);
+      }
+    }
+  }
+
+  var output = closeStream(bz2Stream);
+  if (output) {
+    if (compressed) {
+      compressed = Buffer.concat([compressed, output]);
+    } else {
+      compressed = output;
+    }
+  }
+
+  return compressed;
+}
+
+function compressSync(data, debug, outputBufSize) {
+  outputBufSize = outputBufSize || DEFAULT_OUTPUT_BUFFER_SIZE;
+  var trace = getTraceFunc(debug ? '[CO]' : debug);
+
+  return bz2Codec(
+    () => bzip2.compressInit(),
+    (bz2Stream, data, output) => bzip2.compress(bz2Stream, data, output),
+    bz2Stream => {
+      var compressed;
+      var result = { in : data.length,
+        out: outputBufSize
+      };
+      while (result && !result.reachEnd && result.out > 0) {
+        var output = Buffer.alloc(outputBufSize);
+        result = bzip2.compressEnd(bz2Stream, output);
+        trace('-- Bytes available in input buffer is ' + result.in);
+        trace('-- Bytes in output buffer is ' + result.out);
+        trace('-- Is stream reaches end ? ' + !!result.reachEnd);
+        if (result.out > 0) {
+          trace('-- Try to push ' + result.out + ' bytes');
+          if (compressed) {
+            compressed = Buffer.concat([compressed, output.slice(0, result.out)]);
+          } else {
+            compressed = output.slice(0, result.out);
+          }
+        }
+      }
+
+      return compressed;
+    },
+    data,
+    debug ? '[CO]' : debug,
+    outputBufSize
   );
 }
 
-function createFileWriteStream(path, debug, outputBufSize) {
-  return createCompressStream(debug, outputBufSize).pipe(
-    fs.createWriteStream(path)
+function decompress(data, debug, outputBufSize) {
+
+}
+
+function decompressSync(data, debug, outputBufSize) {
+  return bz2Codec(
+    () => bzip2.decompressInit(),
+    (bz2Stream, data, output) => bzip2.decompress(bz2Stream, data, output),
+    bz2Stream => bzip2.decompressEnd(bz2Stream),
+    data,
+    debug ? '[DEC]' : debug,
+    outputBufSize
   );
 }
 
 module.exports = {
   createCompressStream,
   createDecompressStream,
-  createFileReadStream,
-  createFileWriteStream
-
+  compressSync,
+  decompressSync,
 };

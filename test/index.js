@@ -52,12 +52,23 @@ function fileCodec(inputFile, destinationFile, bz2C, t) {
   input.pipe(bz2C).pipe(writable);
 }
 
+function codecSync(dataSize, t) {
+	const raw = Buffer.alloc(dataSize);
+	var compressed = bz2.compressSync(raw, debug);
+	var decompressed = bz2.decompressSync(compressed, debug);
+	t.eq(decompressed.compare(raw), 0);
+	t.done();
+}
+
 module.exports = {
   compressSmallData: t => bz2Codec(4096, t),
   compressMediumData: t => bz2Codec(1024 * 1024, t),
-  compressLargeData: t => bz2Codec(10* 1024 * 1024, t),
+  compressLargeData: t => bz2Codec(10 * 1024 * 1024, t),
   compressFile: t => fileCodec('test/raw', 'test/compressed',
   	bz2.createCompressStream(debug), t),
   decompressFile: t => fileCodec('test/compressed', 'test/raw',
   	bz2.createDecompressStream(debug), t),
+  compressSmallDataSync: t => codecSync(4096, t),
+  compressMediumDataSync: t => codecSync(1024 * 1024, t),
+  compressLargeDataSync: t => codecSync(10 * 1024 * 1024, t),
 };
