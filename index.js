@@ -6,11 +6,11 @@ var Stream = require('stream');
 
 const DEFAULT_OUTPUT_BUFFER_SIZE = 8192;
 
-function getTraceFunc(debug) {
-  if (!debug) return () => {};
-  console.log('Enable verbose ' + debug);
+function getTraceFunc(verbose) {
+  if (!verbose) return () => {};
+  console.log('Enable verbose ' + verbose);
   return log => {
-    console.log(debug + JSON.stringify(log));
+    console.log(verbose + JSON.stringify(log));
   };
 }
 
@@ -66,8 +66,8 @@ class Bz2Stream extends Stream.Transform {
   }
 }
 
-function createDecompressStream(debug, outputBufSize) {
-  var trace = getTraceFunc(debug ? '[DEC]' : debug);
+function createDecompressStream(verbose, outputBufSize) {
+  var trace = getTraceFunc(verbose ? '[DEC]' : verbose);
   return new Bz2Stream(
     () => bzip2.decompressInit(),
     (stream, input, output) => bzip2.decompress(stream, input, output),
@@ -80,9 +80,9 @@ function createDecompressStream(debug, outputBufSize) {
   );
 }
 
-function createCompressStream(debug, outputBufSize) {
+function createCompressStream(verbose, outputBufSize) {
   outputBufSize = outputBufSize || DEFAULT_OUTPUT_BUFFER_SIZE;
-  var trace = getTraceFunc(debug ? '[CO]' : debug);
+  var trace = getTraceFunc(verbose ? '[CO]' : verbose);
   return new Bz2Stream(
     () => bzip2.compressInit(),
     (stream, input, output) => bzip2.compress(stream, input, output),
@@ -112,9 +112,9 @@ function createCompressStream(debug, outputBufSize) {
   );
 }
 
-function bz2Codec(createStream, codec, closeStream, data, debug, outputBufSize) {
+function bz2Codec(createStream, codec, closeStream, data, verbose, outputBufSize) {
   outputBufSize = outputBufSize || DEFAULT_OUTPUT_BUFFER_SIZE;
-  var trace = getTraceFunc(debug);
+  var trace = getTraceFunc(verbose);
   var bz2Stream = createStream();
   var result = { in : data.length,
     out: outputBufSize
@@ -150,9 +150,9 @@ function bz2Codec(createStream, codec, closeStream, data, debug, outputBufSize) 
   return compressed;
 }
 
-function compressSync(data, debug, outputBufSize) {
+function compressSync(data, verbose, outputBufSize) {
   outputBufSize = outputBufSize || DEFAULT_OUTPUT_BUFFER_SIZE;
-  var trace = getTraceFunc(debug ? '[CO]' : debug);
+  var trace = getTraceFunc(verbose ? '[CO]' : verbose);
 
   return bz2Codec(
     () => bzip2.compressInit(),
@@ -181,22 +181,18 @@ function compressSync(data, debug, outputBufSize) {
       return compressed;
     },
     data,
-    debug ? '[CO]' : debug,
+    verbose ? '[CO]' : verbose,
     outputBufSize
   );
 }
 
-function decompress(data, debug, outputBufSize) {
-
-}
-
-function decompressSync(data, debug, outputBufSize) {
+function decompressSync(data, verbose, outputBufSize) {
   return bz2Codec(
     () => bzip2.decompressInit(),
     (bz2Stream, data, output) => bzip2.decompress(bz2Stream, data, output),
     bz2Stream => bzip2.decompressEnd(bz2Stream),
     data,
-    debug ? '[DEC]' : debug,
+    verbose ? '[DEC]' : verbose,
     outputBufSize
   );
 }
