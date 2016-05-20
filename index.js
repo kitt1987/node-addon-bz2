@@ -4,10 +4,14 @@ const bzip2 = require('./build/Release/bzip2_addon.node');
 const fs = require('fs');
 var Stream = require('stream');
 
-class DecompressStream extends Stream.Transform {
-  constructor() {
+const DEFAULT_OUTPUT_BUFFER_SIZE = 8192;
+
+class Bz2Stream extends Stream.Transform {
+  constructor(onCreateStream, onTransform, onFlush) {
     super();
-    this.bz2Stream = bzip2.decompressInit();
+    this.bz2Stream = onCreateStream();
+    this.onTransform = onTransform;
+    this.onFlush = onFlush;
   }
 
   _transform(chunk, encoding, callback) {
@@ -27,7 +31,7 @@ class DecompressStream extends Stream.Transform {
 
     while (result && !result.reachEnd && result.in > 0 && result.out > 0) {
       var output = Buffer.alloc(outputBufSize);
-      result = bzip2.decompress(this.bz2Stream, this.readBuf, output);
+      result = this.onTransform(this.bz2Stream, this.readBuf, output);
       this.readBuf = this.readBuf.slice(this.readBuf.length - result.in);
       if (result.out > 0) {
         if (!this.push(output.slice(0, result.out))) {
@@ -40,66 +44,44 @@ class DecompressStream extends Stream.Transform {
   }
 
   _flush(callback) {
-    bzip2.decompressEnd(this.bz2Stream);
-    callback();
+    this.onFlush(this.bz2Stream, buf => this.push(buf), callback);
   }
 }
 
-class CompressStream extends Stream.Transform {
-  constructor() {
-    super();
-    this.bz2Stream = bzip2.compressInit();
-  }
-
-  _transform(chunk, encoding, callback) {
-    if (this.readBuf) {
-      this.readBuf = Buffer.concat(
-        [this.readBuf, chunk]
-      );
-    } else {
-      this.readBuf = chunk;
+function createDecompressStream() {
+  return new Bz2Stream(
+    () => bzip2.decompressInit(),
+    (stream, input, output) => bzip2.decompress(stream, input, output),
+    (stream, pushCB, cb) => {
+      bzip2.decompressEnd(stream);
+      cb();
     }
+  );
+}
 
-    const outputBufSize = 8192;
-    var result = {
-      in: this.readBuf.length,
-      out: outputBufSize
-    };
+function createCompressStream() {
+  return new Bz2Stream(
+    () => bzip2.compressInit(),
+    (stream, input, output) => bzip2.compress(stream, input, output),
+    (stream, pushCB, cb) => {
+      const outputBufSize = 8192;
+      var result = {
+        out: outputBufSize
+      };
 
-    while (result && !result.reachEnd && result.in > 0 && result.out > 0) {
-      var output = Buffer.alloc(outputBufSize);
-      result = bzip2.compress(this.bz2Stream, this.readBuf, output);
-      this.readBuf = this.readBuf.slice(this.readBuf.length - result.in);
-      if (result.out > 0) {
-        if (!this.push(output.slice(0, result.out))) {
-          break;
+      while (result && !result.reachEnd && result.out > 0) {
+        var output = Buffer.alloc(outputBufSize);
+        result = bzip2.compressEnd(stream, output);
+        if (result.out > 0) {
+          if (!pushCB(output.slice(0, result.out))) {
+            break;
+          }
         }
       }
+
+      cb();
     }
-
-    callback();
-  }
-
-  _flush(callback) {
-    const outputBufSize = 8192;
-    var result = {
-      out: outputBufSize
-    };
-
-    while (result && !result.reachEnd && result.out > 0) {
-      var output = Buffer.alloc(outputBufSize);
-      result = bzip2.compressEnd(this.bz2Stream, output);
-      this.readBuf = this.readBuf.slice(this.readBuf.length - result.in);
-      if (result.out > 0) {
-        if (!this.push(output.slice(0, result.out))) {
-          break;
-        }
-      }
-    }
-
-    callback();
-  }
-
+  );
 }
 
 class Bz2FileReadStream extends Stream.Readable {
@@ -200,17 +182,15 @@ class Bz2FileWriteStream extends Stream.Writable {
   }
 }
 
-function createCompressStream(path) {
-  return new Bz2FileWriteStream(path);
-}
+// function createCompressStream(path) {
+//   return new Bz2FileWriteStream(path);
+// }
 
-function createDecompressStream(path) {
-  return new Bz2FileReadStream(path);
-}
+// function createDecompressStream(path) {
+//   return new Bz2FileReadStream(path);
+// }
 
 module.exports = {
   createCompressStream,
   createDecompressStream,
-  DecompressStream,
-  CompressStream
 };

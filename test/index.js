@@ -23,8 +23,8 @@ function bz2Codec(dataSize, t) {
   	t.eq(output.compare(data), 0);
     t.done();
   });
-  var bz2C = new bz2.CompressStream();
-  var bz2D = new bz2.DecompressStream();
+  var bz2C = new bz2.createCompressStream();
+  var bz2D = new bz2.createDecompressStream();
   bz2C.pipe(bz2D).pipe(writable);
   bz2C.end(data);
 }
@@ -32,4 +32,5 @@ function bz2Codec(dataSize, t) {
 module.exports = {
   compressSmallData: t => bz2Codec(4096, t),
   compressMediumData: t => bz2Codec(1024 * 1024, t),
+  // compressLargeData: t => bz2Codec(1024* 1024 * 1024, t),
 };
