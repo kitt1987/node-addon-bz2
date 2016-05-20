@@ -9,8 +9,10 @@ bz2 stream for Node. Thanks to [libbz2](http://www.bzip.org/).
 ## HowTo
 ```
 const bz2 = require('node-addon-bz2');
-bz2.createDecompressStream(compressedDataFile).pipe(fs.createWriteStream(rawDataFile));
-fs.createReadStream(rawDataFile).pipe(bz2.createCompressStream(compressedDataFile));
+const bz2Compress = bz2.createCompressStream();
+fs.createReadStream('raw').pipe(bz2Compress).pipe(fs.createWriteStream('compressed'));
+const bz2Decompress = bz2.createDecompressStream();
+fs.createReadStream('compressed').pipe(bz2Decompress).pipe(fs.createWriteStream('raw'));
 ```
 
 ## License
