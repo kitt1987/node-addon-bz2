@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "bu -d test"
+    "test": "bu -f test/index.js"
   },
   "author": "",
   "license": "ISC",
