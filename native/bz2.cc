@@ -46,7 +46,7 @@ void compressInit(const FunctionCallbackInfo<Value>& args) {
 
   bz_stream* bzs = (bz_stream*)calloc(1, sizeof(bz_stream));
   if (bzs == NULL) {
-    isolate->ThrowException(Exception::TypeError(
+    isolate->ThrowException(Exception::Error(
         String::NewFromUtf8(
           isolate, "Fail to alloca memory."
         )));
@@ -56,7 +56,7 @@ void compressInit(const FunctionCallbackInfo<Value>& args) {
   int result = BZ2_bzCompressInit(bzs, 2, 0, 30);
   if (result != BZ_OK) {
     std::cerr << "Fail to initialize bz2 caused by " << result << std::endl;
-    isolate->ThrowException(Exception::TypeError(
+    isolate->ThrowException(Exception::Error(
         String::NewFromUtf8(
           isolate, "Fail to initial bz2."
         )));
@@ -69,7 +69,7 @@ void compressInit(const FunctionCallbackInfo<Value>& args) {
 void compress(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = args.GetIsolate();
   if (args.Length() < 3) {
-    isolate->ThrowException(Exception::TypeError(
+    isolate->ThrowException(Exception::Error(
         String::NewFromUtf8(
           isolate, "You have to set the bzip2 stream, input buffer"
           " and callback to write compressed data."
@@ -107,7 +107,7 @@ void compress(const FunctionCallbackInfo<Value>& args) {
 
   bz_stream* bzs = (bz_stream*) Local<External>::Cast(args[0])->Value();
   if (bzs == NULL) {
-    isolate->ThrowException(Exception::TypeError(
+    isolate->ThrowException(Exception::Error(
         String::NewFromUtf8(
           isolate, "You need to call compressInit first."
         )));
@@ -125,7 +125,7 @@ void compress(const FunctionCallbackInfo<Value>& args) {
     int result = BZ2_bzCompress(bzs, BZ_RUN);
     if (result != BZ_RUN_OK) {
       std::cerr << "Fail to compress caused by " << result << std::endl;
-      isolate->ThrowException(Exception::TypeError(
+      isolate->ThrowException(Exception::Error(
           String::NewFromUtf8(
             isolate, "Fail to compress."
           )));
@@ -144,7 +144,7 @@ void compress(const FunctionCallbackInfo<Value>& args) {
 void compressEnd(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = args.GetIsolate();
   if (args.Length() < 2) {
-    isolate->ThrowException(Exception::TypeError(
+    isolate->ThrowException(Exception::Error(
         String::NewFromUtf8(
           isolate, "You have to set the bzip2 stream, input buffer"
           " and callback to write compressed data."
@@ -180,7 +180,7 @@ void compressEnd(const FunctionCallbackInfo<Value>& args) {
     result = BZ2_bzCompress(bzs, BZ_FINISH);
     if (result != BZ_FINISH_OK && result != BZ_STREAM_END) {
       std::cerr << "Fail to finish compress caused by " << result << std::endl;
-      isolate->ThrowException(Exception::TypeError(
+      isolate->ThrowException(Exception::Error(
           String::NewFromUtf8(isolate, "Fail to compress."))
       );
       return;
@@ -202,7 +202,7 @@ void decompressInit(const FunctionCallbackInfo<Value>& args) {
 
   bz_stream* bzs = (bz_stream*)calloc(1, sizeof(bz_stream));
   if (bzs == NULL) {
-    isolate->ThrowException(Exception::TypeError(
+    isolate->ThrowException(Exception::Error(
         String::NewFromUtf8(
           isolate, "Fail to alloca memory."
         )));
@@ -212,7 +212,7 @@ void decompressInit(const FunctionCallbackInfo<Value>& args) {
   int result = BZ2_bzDecompressInit(bzs, 0, 1);
   if (result != BZ_OK) {
     std::cerr << "Fail to initialize bz2 caused by " << result << std::endl;
-    isolate->ThrowException(Exception::TypeError(
+    isolate->ThrowException(Exception::Error(
         String::NewFromUtf8(
           isolate, "Fail to initial bz2."
         )));
@@ -225,7 +225,7 @@ void decompressInit(const FunctionCallbackInfo<Value>& args) {
 void decompress(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = args.GetIsolate();
   if (args.Length() < 3) {
-    isolate->ThrowException(Exception::TypeError(
+    isolate->ThrowException(Exception::Error(
         String::NewFromUtf8(
           isolate, "bzip2 stream, compressed data buffer and output buffer are"
           " required."
@@ -274,7 +274,7 @@ void decompress(const FunctionCallbackInfo<Value>& args) {
     result = BZ2_bzDecompress(bzs);
     if (result != BZ_OK && result != BZ_STREAM_END) {
       std::cerr << "Fail to decompress caused by " << result << std::endl;
-      isolate->ThrowException(Exception::TypeError(
+      isolate->ThrowException(Exception::Error(
           String::NewFromUtf8(isolate, "Fail to decompress.")));
       return;
     }
@@ -293,7 +293,7 @@ void decompress(const FunctionCallbackInfo<Value>& args) {
 void decompressEnd(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = args.GetIsolate();
   if (args.Length() < 1) {
-    isolate->ThrowException(Exception::TypeError(
+    isolate->ThrowException(Exception::Error(
         String::NewFromUtf8(
           isolate, "You have to set the bzip2 stream and callback to write"
           " compressed data."
